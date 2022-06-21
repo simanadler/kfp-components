@@ -8,10 +8,10 @@ outputs:
   - {name: train_dataset_endpoint, type: string}
 implementation:
   container:
-    image: download_image_location
+    image: ghcr.io/fybrik/kfp-components/get_data_endpoints
     command: ['python3', 'get_data_endpoints.py']
-    args: ['--train_dataset', {inputValue: test_dataset_id},
-           '--test_dataset', {inputValue: train_dataset_id},
+    args: ['--train_dataset_id', {inputValue: test_dataset_id},
+           '--test_dataset_id', {inputValue: train_dataset_id},
            '--run_name', {inputValue: run_name},
            '--namespace', {inputValue: namespace},
           ' --intent', {inputValue: intent},
