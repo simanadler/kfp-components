@@ -1,0 +1,19 @@
+name: get data endpoints
+description: returns endpoints via which the datasets may be accessed
+inputs:
+  - {name: test_dataset_id, type: string} # using katalog this should be namespace/assetname
+  - {name: train_dataset_id, type: string }
+outputs:
+  - {name: test_dataset_endpoint, type: string}
+  - {name: train_dataset_endpoint, type: string}
+implementation:
+  container:
+    image: download_image_location
+    command: ['python3', 'get_data_endpoints.py']
+    args: ['--train_dataset', {inputValue: test_dataset_id},
+           '--test_dataset', {inputValue: train_dataset_id},
+           '--run_name', {inputValue: run_name},
+           '--namespace', {inputValue: namespace},
+          ' --intent', {inputValue: intent},
+           '--train_endpoint', {outputValue: train_dataset_endpoint},
+           '--test_endpoint', {outputValue: test_dataset_endpoint}]
