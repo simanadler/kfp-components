@@ -9,4 +9,4 @@ docker build --build-arg BASE_IMAGE_TAG=${base_image_tag} -t "${full_image_name}
 docker push "$full_image_name"
 
 # Output the strict image name (which contains the sha256 image digest)
-docker inspect --format="{{index .RepoDigests 0}}" "${IMAGE_NAME}"
+docker inspect --format="{{.RepoDigests}}" "${image_name}"
