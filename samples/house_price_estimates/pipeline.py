@@ -1,5 +1,6 @@
 import kfp.dsl as dsl
 import kfp.components as components
+from kubernetes import client as k8s_client
 
 @dsl.pipeline(
     name = "Fybrik housing price estimate pipeline",
@@ -18,7 +19,8 @@ def houseprice_pipeline(
  #   downloadDataStep = downloadDataOp(bucket_name=bucket_name).apply(use_gcp_secret('user-gcp-sa'))
     getDataEndpointsOp = components.load_component_from_file('../../get_data_endpoints/component.yaml')
     getDataEndpointsStep = getDataEndpointsOp(train_dataset_id=train_dataset_id, test_dataset_id=test_dataset_id, namespace=namespace, intent=intent, run_name=run_name)
-
+ #   print("In pipeline: train_dataset = " + str(getDataEndpointsStep.outputs['train_endpoint'].value))
+ #   print("In pipeline: test_dataset = " + str(getDataEndpointsStep.outputs['test_endpoint'].value))
 
 if __name__ == '__main__':
 
@@ -34,4 +36,5 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     from kfp_tekton.compiler import TektonCompiler
+ 
     TektonCompiler().compile(houseprice_pipeline, __file__.replace('.py', '.yaml'))
