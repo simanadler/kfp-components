@@ -19,6 +19,3 @@ implementation:
       --run_name, {inputValue: run_name},
       --namespace, {inputValue: namespace},
       --intent, {inputValue: intent}]
-    fileOutputs:
-      train_endpoint: /train.txt
-      test_endpoint: /test.txt

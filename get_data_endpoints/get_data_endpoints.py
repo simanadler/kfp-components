@@ -137,7 +137,42 @@ def createFybrikApplication(run_name, intent, train_data, test_data, namespace, 
     except ApiException as e:
         print("Exception when calling CustomObjectsApi->create_namespaced_custom_object: %s\n" % e)
         return False
- 
+
+def testFunc():
+    # Return empty endpoints
+    with open('train.txt', 'w') as f:
+        f.write("grpc://virtual-train-endpoint")
+    with open('test.txt', 'w') as f:
+        f.write("grpc://virtual-test-endpoint")  
+
+def doFybrikMagic():
+    # Get access to kubernetes
+    #config.load_kube_config()
+    try:
+        config.load_incluster_config()
+    except config.ConfigException:
+        try:
+            config.load_kube_config()
+        except config.ConfigException:
+            raise Exception("Could not configure kubernetes python client")
+
+    # Configure API key authorization: BearerToken
+    #configuration = client.Configuration()
+    k8s_api = client.CustomObjectsApi()
+
+       # When the status is ready, get the endpoints from the FybrikApplication status
+    succeeded = createFybrikApplication(args.run_name, args.intent, args.train_dataset_id, args.test_dataset_id, args.namespace, k8s_api)
+
+    if (succeeded):
+        getEndpoints(args.run_name, args.train_dataset_id, args.test_dataset_id, k8s_api, args.namespace)
+    else:
+        # Return empty endpoints
+        with open('train.txt', 'w') as f:
+            f.write("")
+        with open('test.txt', 'w') as f:
+            f.write("")  
+
+
 if __name__ == '__main__':
  
     # Get the arguments passed to the component
@@ -153,28 +188,6 @@ if __name__ == '__main__':
     parser.add_argument('--test_endpoint', type=str)
     args = parser.parse_args()
 
-    # Get access to kubernetes
-    #config.load_kube_config()
-    try:
-        config.load_incluster_config()
-    except config.ConfigException:
-        try:
-            config.load_kube_config()
-        except config.ConfigException:
-            raise Exception("Could not configure kubernetes python client")
+    print("Calling doFybrikMagic to create the FybrikApplication, apply it, and read its status")
+    doFybrikMagic()
 
-    # Configure API key authorization: BearerToken
-    #configuration = client.Configuration()
-    k8s_api = client.CustomObjectsApi()
-
-    # When the status is ready, get the endpoints from the FybrikApplication status
-    succeeded = createFybrikApplication(args.run_name, args.intent, args.train_dataset_id, args.test_dataset_id, args.namespace, k8s_api)
-
-    if (succeeded):
-        getEndpoints(args.run_name, args.train_dataset_id, args.test_dataset_id, k8s_api, args.namespace)
-    else:
-        # Return empty endpoints
-        with open('train.txt', 'w') as f:
-            f.write("")
-        with open('test.txt', 'w') as f:
-            f.write("")  

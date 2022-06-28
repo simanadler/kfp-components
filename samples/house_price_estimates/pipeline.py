@@ -14,14 +14,12 @@ def houseprice_pipeline(
     namespace: str
 ):
 
-    # Todo: replace with component that returns endpoint to cataloged data
+   
  #   downloadDataOp = components.load_component_from_file('./download_dataset/component.yaml')
  #   downloadDataStep = downloadDataOp(bucket_name=bucket_name).apply(use_gcp_secret('user-gcp-sa'))
     getDataEndpointsOp = components.load_component_from_file('../../get_data_endpoints/component.yaml')
     getDataEndpointsStep = getDataEndpointsOp(train_dataset_id=train_dataset_id, test_dataset_id=test_dataset_id, namespace=namespace, intent=intent, run_name=run_name)
- #   print("In pipeline: train_dataset = " + str(getDataEndpointsStep.outputs['train_endpoint'].value))
- #   print("In pipeline: test_dataset = " + str(getDataEndpointsStep.outputs['test_endpoint'].value))
-
+ 
 if __name__ == '__main__':
 
     import argparse
