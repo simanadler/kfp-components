@@ -7,8 +7,8 @@ inputs:
   - {name: namespace, type: String }
   - {name: intent, type: String }
 outputs:
-  - {name: test_endpoint, type: String}
-  - {name: train_endpoint, type: String}
+  - {name: test_endpoint_path, type: String}
+  - {name: train_endpoint_path, type: String}
 implementation:
   container:
     image: ghcr.io/fybrik/kfp-components/get_data_endpoints:latest
@@ -18,4 +18,6 @@ implementation:
       --test_dataset_id, {inputValue: train_dataset_id},
       --run_name, {inputValue: run_name},
       --namespace, {inputValue: namespace},
-      --intent, {inputValue: intent}]
+      --intent, {inputValue: intent},
+      --test_endpoint_path, {outputPath: test_endpoint_path},
+      --train_endpoint_path, {outputPath: train_endpoint_path}]
