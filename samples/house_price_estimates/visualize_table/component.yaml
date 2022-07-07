@@ -1,0 +1,11 @@
+name: visualize table
+description: visualize dataset in table
+inputs:
+  - {name: train_endpoint, type: String}
+  - {name: train_dataset_id, type: String}
+implementation:
+  container:
+    image: ghcr.io/fybrik/kfp-components/visualize_table:latest
+    command: ['python3', 'visualize.py']
+    args: ['--train_endpoint', {inputPath: train_endpoint},
+           '--train_dataset_id', {inputValue: train_dataset_id}]

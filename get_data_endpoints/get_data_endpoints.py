@@ -8,6 +8,11 @@ from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 from pprint import pprint
 
+def _make_parent_dirs_and_return_path(file_path: str):
+    import os
+    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+    return file_path
+
 # Wait until the FybrikApplication is ready, 
 # and then get the endpoints for the datasets requested.
 # If there is an error in FybrikApplication deployment or for one of the datasets
@@ -143,9 +148,9 @@ def createFybrikApplication(args, k8s_api):
 def doFybrikMagic(args):
     # Creating the directory where the output file is created (the directory
     # may or may not exist).
-    from pathlib import Path
-    Path(args.train_endpoint_path).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.test_endpoint_path).parent.mkdir(parents=True, exist_ok=True)
+#    from pathlib import Path
+#    Path(args.train_endpoint_path).parent.mkdir(parents=True, exist_ok=True)
+#    Path(args.test_endpoint_path).parent.mkdir(parents=True, exist_ok=True)
 
     # Get access to kubernetes
     try:
@@ -185,12 +190,15 @@ if __name__ == '__main__':
     parser.add_argument('--run_name', type=str)
     parser.add_argument('--intent', type=str)
     parser.add_argument('--namespace', type=str)
-    parser.add_argument('--train_endpoint_path', type=str)
-    parser.add_argument('--test_endpoint_path', type=str)
+ #   parser.add_argument('--train_endpoint_path', type=str)
+ #   parser.add_argument('--test_endpoint_path', type=str)
+    parser.add_argument("--test_endpoint", dest="test_endpoint_path", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+    parser.add_argument("--train_endpoint", dest="train_endpoint_path", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+    
     args = parser.parse_args()
 
     # print("Calling doFybrikMagic to create the FybrikApplication, apply it, and read its status")
-    doFybrikMagic(args)
+    outputs = doFybrikMagic(args)
 
     # Calling testFunc to write static output
     # testFunc()
