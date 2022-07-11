@@ -1,0 +1,20 @@
+name: train model
+description: train and test
+inputs:
+  - {name: train_endpoint_path, type: String}
+  - {name: test_endpoint_path, type: String}
+  - {name: train_dataset_id, type: String}
+  - {name: test_dataset_id, type: String}
+  - {name: namespace, type: String}
+outputs:
+  - {name: result_path, type: String}
+implementation:
+  container:
+    image: ghcr.io/fybrik/kfp-components/train_model
+    command: ['python3', 'train.py']
+    args: ['--train_endpoint_path', {inputPath: train_endpoint_path},
+           '--test_endpoint_path', {inputPath: test_endpoint_path},
+           '--train_dataset_id', {inputValue: train_dataset_id},
+           '--test_dataset_id', {inputValue: test_dataset_id},
+           '--namespace', {inputValue: namespace},
+           '--result_path', {outputPath: result_path}]

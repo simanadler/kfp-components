@@ -6,26 +6,33 @@ metadata:
     tekton.dev/output_artifacts: '{"get-data-endpoints": [{"key": "artifacts/$PIPELINERUN/get-data-endpoints/test_endpoint.tgz",
       "name": "get-data-endpoints-test_endpoint", "path": "/tmp/outputs/test_endpoint/data"},
       {"key": "artifacts/$PIPELINERUN/get-data-endpoints/train_endpoint.tgz", "name":
-      "get-data-endpoints-train_endpoint", "path": "/tmp/outputs/train_endpoint/data"}]}'
-    tekton.dev/input_artifacts: '{"visualize-table": [{"name": "get-data-endpoints-train_endpoint",
+      "get-data-endpoints-train_endpoint", "path": "/tmp/outputs/train_endpoint/data"}],
+      "train-model": [{"key": "artifacts/$PIPELINERUN/train-model/result_path.tgz",
+      "name": "train-model-result_path", "path": "/tmp/outputs/result_path/data"}]}'
+    tekton.dev/input_artifacts: '{"train-model": [{"name": "get-data-endpoints-test_endpoint",
+      "parent_task": "get-data-endpoints"}, {"name": "get-data-endpoints-train_endpoint",
+      "parent_task": "get-data-endpoints"}], "visualize-table": [{"name": "get-data-endpoints-train_endpoint",
       "parent_task": "get-data-endpoints"}]}'
     tekton.dev/artifact_bucket: mlpipeline
     tekton.dev/artifact_endpoint: minio-service.kubeflow:9000
     tekton.dev/artifact_endpoint_scheme: http://
-    tekton.dev/artifact_items: '{"get-data-endpoints": [["test_endpoint", "$(results.test-endpoint.path)"],
+    tekton.dev/artifact_items: '{"get-data-endpoints": [["test_endpoint", "$(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/test_endpoint"],
       ["train_endpoint", "$(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/train_endpoint"]],
-      "visualize-table": []}'
+      "train-model": [["result_path", "$(results.result-path.path)"]], "visualize-table":
+      []}'
     sidecar.istio.io/inject: "false"
     pipelines.kubeflow.org/big_data_passing_format: $(workspaces.$TASK_NAME.path)/artifacts/$ORIG_PR_NAME/$TASKRUN_NAME/$TASK_PARAM_NAME
     pipelines.kubeflow.org/pipeline_spec: '{"description": "Pipeline that provides
       data policy governed access to cataloged data, analyses data, trains model,
       and writes the results and catalogs them", "inputs": [{"name": "test_dataset_id",
       "type": "String"}, {"name": "train_dataset_id", "type": "String"}, {"name":
-      "run_name", "type": "String"}, {"name": "intent", "type": "String"}], "name":
-      "Fybrik housing price estimate pipeline"}'
+      "run_name", "type": "String"}, {"name": "intent", "type": "String"}, {"name":
+      "namespace", "type": "String"}], "name": "Fybrik housing price estimate pipeline"}'
 spec:
   params:
   - name: intent
+    value: ''
+  - name: namespace
     value: ''
   - name: run_name
     value: ''
@@ -36,6 +43,7 @@ spec:
   pipelineSpec:
     params:
     - name: intent
+    - name: namespace
     - name: run_name
     - name: test_dataset_id
     - name: train_dataset_id
@@ -44,6 +52,8 @@ spec:
       params:
       - name: intent
         value: $(params.intent)
+      - name: namespace
+        value: $(params.namespace)
       - name: run_name
         value: $(params.run_name)
       - name: test_dataset_id
@@ -61,11 +71,11 @@ spec:
           - --run_name
           - $(inputs.params.run_name)
           - --namespace
-          - kubeflow
+          - $(inputs.params.namespace)
           - --intent
           - $(inputs.params.intent)
           - --test_endpoint
-          - $(results.test-endpoint.path)
+          - $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/test_endpoint
           - --train_endpoint
           - $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/train_endpoint
           command:
@@ -89,6 +99,12 @@ spec:
             #!/bin/sh
             set -exo pipefail
             TOTAL_SIZE=0
+            ARTIFACT_SIZE=`wc -c $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/test_endpoint | awk '{print $1}'`
+            TOTAL_SIZE=$( expr $TOTAL_SIZE + $ARTIFACT_SIZE)
+            touch $(results.test-endpoint.path)
+            if [[ $TOTAL_SIZE -lt 3072 ]]; then
+              cp $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/test_endpoint $(results.test-endpoint.path)
+            fi
             ARTIFACT_SIZE=`wc -c $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/train_endpoint | awk '{print $1}'`
             TOTAL_SIZE=$( expr $TOTAL_SIZE + $ARTIFACT_SIZE)
             touch $(results.train-endpoint.path)
@@ -103,6 +119,7 @@ spec:
                 fieldPath: metadata.labels['custom.tekton.dev/originalPipelineRun']
         params:
         - name: intent
+        - name: namespace
         - name: run_name
         - name: test_dataset_id
         - name: train_dataset_id
@@ -133,6 +150,8 @@ spec:
         workspace: fybrik-housing-price-estimate-pipeline
     - name: visualize-table
       params:
+      - name: namespace
+        value: $(params.namespace)
       - name: train_dataset_id
         value: $(params.train_dataset_id)
       - name: get-data-endpoints-trname
@@ -145,6 +164,8 @@ spec:
           - $(workspaces.visualize-table.path)/artifacts/$ORIG_PR_NAME/$(params.get-data-endpoints-trname)/train_endpoint
           - --train_dataset_id
           - $(inputs.params.train_dataset_id)
+          - --namespace
+          - $(inputs.params.namespace)
           command:
           - python3
           - visualize.py
@@ -155,6 +176,7 @@ spec:
               fieldRef:
                 fieldPath: metadata.labels['custom.tekton.dev/originalPipelineRun']
         params:
+        - name: namespace
         - name: train_dataset_id
         - name: get-data-endpoints-trname
         metadata:
@@ -164,7 +186,7 @@ spec:
             pipelines.kubeflow.org/cache_enabled: "true"
           annotations:
             pipelines.kubeflow.org/component_spec_digest: '{"name": "visualize table",
-              "outputs": [], "version": "visualize table@sha256=3c747d3932adeef32d8c48afffc517707d601147035104b0b780d9473156cece"}'
+              "outputs": [], "version": "visualize table@sha256=8333aaeeba7e347483555e8f073f8f02fc66fb6061329479585e4070da22e4aa"}'
             tekton.dev/template: ''
         workspaces:
         - name: visualize-table
@@ -173,6 +195,69 @@ spec:
       - name: visualize-table
         workspace: fybrik-housing-price-estimate-pipeline
       runAfter:
+      - get-data-endpoints
+    - name: train-model
+      params:
+      - name: namespace
+        value: $(params.namespace)
+      - name: test_dataset_id
+        value: $(params.test_dataset_id)
+      - name: train_dataset_id
+        value: $(params.train_dataset_id)
+      - name: get-data-endpoints-trname
+        value: $(tasks.get-data-endpoints.results.taskrun-name)
+      taskSpec:
+        steps:
+        - name: main
+          args:
+          - --train_endpoint_path
+          - $(workspaces.train-model.path)/artifacts/$ORIG_PR_NAME/$(params.get-data-endpoints-trname)/train_endpoint
+          - --test_endpoint_path
+          - $(workspaces.train-model.path)/artifacts/$ORIG_PR_NAME/$(params.get-data-endpoints-trname)/test_endpoint
+          - --train_dataset_id
+          - $(inputs.params.train_dataset_id)
+          - --test_dataset_id
+          - $(inputs.params.test_dataset_id)
+          - --namespace
+          - $(inputs.params.namespace)
+          - --result_path
+          - $(results.result-path.path)
+          command:
+          - python3
+          - train.py
+          image: ghcr.io/fybrik/kfp-components/train_model
+          env:
+          - name: ORIG_PR_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.labels['custom.tekton.dev/originalPipelineRun']
+        params:
+        - name: namespace
+        - name: test_dataset_id
+        - name: train_dataset_id
+        - name: get-data-endpoints-trname
+        results:
+        - name: result-path
+          type: string
+          description: /tmp/outputs/result_path/data
+        metadata:
+          labels:
+            pipelines.kubeflow.org/pipelinename: ''
+            pipelines.kubeflow.org/generation: ''
+            pipelines.kubeflow.org/cache_enabled: "true"
+          annotations:
+            pipelines.kubeflow.org/component_spec_digest: '{"name": "train model",
+              "outputs": [{"name": "result_path", "type": "String"}], "version": "train
+              model@sha256=d5eb51ea4453674e346b1c44d344a6b78509e5060ac3d18272048e7fcd6e319d"}'
+            tekton.dev/template: ''
+        workspaces:
+        - name: train-model
+      timeout: 525600m
+      workspaces:
+      - name: train-model
+        workspace: fybrik-housing-price-estimate-pipeline
+      runAfter:
+      - get-data-endpoints
       - get-data-endpoints
     workspaces:
     - name: fybrik-housing-price-estimate-pipeline

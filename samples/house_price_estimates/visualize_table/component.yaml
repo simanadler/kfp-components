@@ -3,9 +3,11 @@ description: visualize dataset in table
 inputs:
   - {name: train_endpoint, type: String}
   - {name: train_dataset_id, type: String}
+  - {name: namespace, type: String}
 implementation:
   container:
     image: ghcr.io/fybrik/kfp-components/visualize_table:latest
     command: ['python3', 'visualize.py']
     args: ['--train_endpoint', {inputPath: train_endpoint},
-           '--train_dataset_id', {inputValue: train_dataset_id}]
+           '--train_dataset_id', {inputValue: train_dataset_id},
+           '--namespace', {inputValue: namespace}]

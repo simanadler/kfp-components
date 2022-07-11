@@ -136,6 +136,8 @@ def createFybrikApplication(args, k8s_api):
  
     # Create the FybrikApplication yaml
     fa = createFybrikApplicationObj(args)
+    print("FybrikApplication: \n")
+    print(fa)
 
     try:
         resp = k8s_api.create_namespaced_custom_object(body=fa, namespace=args.namespace, group="app.fybrik.io", version="v1alpha1", plural="fybrikapplications")
