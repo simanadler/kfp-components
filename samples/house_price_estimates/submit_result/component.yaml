@@ -1,0 +1,11 @@
+name: submit result
+description: submit prediction result to catalog
+inputs:
+  - {name: result_catalogid, type: String}
+outputs:
+  - {name: MLPipeline UI metadata, type: UI metadata}
+implementation:
+  container:
+    image: ghcr.io/fybrik/kfp-components/submit_result:latest
+    command: ['python3', 'submit_result.py']
+    args: ['--result_catalogid', {inputPath: result_catalogid}]

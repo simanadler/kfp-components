@@ -7,6 +7,7 @@ import os
     name = "Fybrik housing price estimate pipeline",
     description = "Pipeline that provides data policy governed access to cataloged data, analyses data, trains model, and writes the results and catalogs them"
 )
+
 def houseprice_pipeline(
     test_dataset_id: str,
     train_dataset_id: str,
@@ -16,30 +17,29 @@ def houseprice_pipeline(
 ):
        
     # Where to store parameters passed between workflow steps
-    train_endpoint_path = './train.txt'
-    test_endpoint_path = './test.txt'
-    mlpipeline_metrics = './mlpipeline_metadata.json'
-    result_path = './result.txt'
     result_name = "submission-" + str(run_name)
 
-#    downloadDataOp = components.load_component_from_file('./download_dataset/component.yaml')
-#    downloadDataStep = downloadDataOp(bucket_name='test-bucket').apply(use_gcp_secret('user-gcp-sa'))
     getDataEndpointsOp = components.load_component_from_file('../../get_data_endpoints/component.yaml')
     getDataEndpointsStep = getDataEndpointsOp(train_dataset_id=train_dataset_id, test_dataset_id=test_dataset_id, namespace=namespace, intent=intent, run_name=run_name, result_name=result_name)
- 
+    
     visualizeTableOp = components.load_component_from_file('./visualize_table/component.yaml')
     visualizeTableStep = visualizeTableOp(train_endpoint='%s'% getDataEndpointsStep.outputs['train_endpoint'], train_dataset_id=train_dataset_id, namespace=namespace)
- #   visualizeTableStep = visualizeTableOp(train_endpoint='%s'% getDataEndpointsStep.outputs['train_endpoint'], train_dataset_id=train_dataset_id, namespace=namespace, MLPipeline_Metrics=mlpipeline_metrics)
+    visualizeTableStep.after(getDataEndpointsStep)
 
     trainModelOp = components.load_component_from_file('./train_model/component.yaml')
     trainModelStep = trainModelOp(train_endpoint_path='%s' % getDataEndpointsStep.outputs['train_endpoint'],
-                                  test_endpoint_path='%s' % getDataEndpointsStep.outputs['test_endpoint'],
-                                  result_name=result_name,
-                                  result_endpoint_path='%s' % getDataEndpointsStep.outputs['result_endpoint'],
-                                  train_dataset_id=train_dataset_id,
-                                  test_dataset_id=test_dataset_id,
-                                  namespace=namespace)
+                                test_endpoint_path='%s' % getDataEndpointsStep.outputs['test_endpoint'],
+                                result_name=result_name,
+                                result_endpoint_path='%s' % getDataEndpointsStep.outputs['result_endpoint'],
+                                train_dataset_id=train_dataset_id,
+                                test_dataset_id=test_dataset_id,
+                                namespace=namespace)
+    trainModelStep.after(visualizeTableStep)
 
+    sumbitResultOp = components.load_component_from_file('./submit_result/component.yaml')
+    submitResultStep = sumbitResultOp(getDataEndpointsStep.outputs['result_catalogid'])
+    submitResultStep.after(trainModelStep)
+ 
 if __name__ == '__main__':
 
     # Set environment values to ensure persistent volumes used to pass parameters are allocated successfully 

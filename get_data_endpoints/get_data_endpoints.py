@@ -24,8 +24,12 @@ def getEndpoints(args, k8s_api):
     fa_status = None
     train_status = None
     test_status = None
+    result_status = None
     train_endpoint = ""
     test_endpoint = ""
+    result_endpoint = ""
+    result_catalogid = ""
+
     while (fa_status == None) or ((train_status == None) or (test_status == None)):
         try:
             fa = k8s_api.get_namespaced_custom_object_status(
@@ -95,19 +99,25 @@ def getEndpoints(args, k8s_api):
 
     if result_status == "Ready":
         result_struct = fa_status["assetStates"][args.result_name]["endpoint"]["fybrik-arrow-flight"]
-        result_endpoint = test_struct["scheme"] + "://" + test_struct["hostname"] + ":" + test_struct["port"]       
-
+        result_endpoint = result_struct["scheme"] + "://" + result_struct["hostname"] + ":" + result_struct["port"]       
+        result_catalogid = fa_status["assetStates"][args.result_name]["catalogedAsset"]
+ 
     print("train_status is " + train_status + ", train_endpoint: " + train_endpoint)
     print("train_status is " + test_status + ", test_endpoint: " + test_endpoint)
     print("result_status is " + result_status + ", result_endpoint: " + result_endpoint)
+    print("result_catalogid is %s\n" % result_catalogid)
 
-    # Return the two endpoints for the two datasets - by writing to files
+    # Return the endpoints for the input and ouptut datasets - by writing to files
     with open(args.train_endpoint_path, 'w') as train_file:
         train_file.write(train_endpoint)
     with open(args.test_endpoint_path, 'w') as test_file:
         test_file.write(test_endpoint)
     with open(args.result_endpoint_path, 'w') as result_file:
         result_file.write(result_endpoint)
+    
+    # Return the id of the new catalog entry created for the results dataset
+    with open(args.result_catalogid_path, 'w') as result_catalogid_file:
+        result_catalogid_file.write(result_catalogid)
 
 
 # Create a FybrikApplication with the datasets requested and the context
@@ -212,6 +222,8 @@ def doFybrikMagic(args):
             test_file.write("")
         with open(args.result_endpoint_path, 'w') as result_file:
             result_file.write("")
+        with open(args.result_catalogid_path, 'w') as result_catalogid_file:
+            result_catalogid_file.write("")
    
 
 
@@ -232,6 +244,7 @@ if __name__ == '__main__':
     parser.add_argument("--train_endpoint", dest="train_endpoint_path", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
     parser.add_argument("--result_name", type=str, required=True, default=argparse.SUPPRESS)
     parser.add_argument("--result_endpoint", dest="result_endpoint_path", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
+    parser.add_argument("--result_catalogid", dest="result_catalogid_path", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
     args = parser.parse_args()
 
     # print("Calling doFybrikMagic to create the FybrikApplication, apply it, and read its status")
