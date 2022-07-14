@@ -22,19 +22,20 @@ limitations under the License.
 import pandas as pd
 import json
 import pyarrow.flight as fl
+import pyarrow as pa
 
-def write_result(result_endpoint_path, new_dataset_name, namespace, results):
+def write_result(args, result_df):
     # Get the endpoint for writing the results
     try:
-        with open(result_endpoint_path, 'r') as result_path_file:
-            result_endpoint = result_path_file.read(results)
+        with open(args.result_endpoint_path, 'r') as result_path_file:
+            result_endpoint = result_path_file.read()
             result_path_file.close()
     except Exception as e:
         print("Error getting write endpoint from file: %s\n" % e)
-        print("result_endpoint_path: %s\n" % result_endpoint_path)
+        print("result_endpoint_path: %s\n" % args.result_endpoint_path)
+        return None
 
-    # Write the data using arrow flight
-       # Read the file from cos using arrow-flight
+    
     # Create a Flight client
     try:
         client = fl.connect(result_endpoint)
@@ -44,19 +45,25 @@ def write_result(result_endpoint_path, new_dataset_name, namespace, results):
         return None
 
     # Prepare the request
-    request = { 'asset': new_dataset_name } 
+    request = { 'asset': args.result_name } 
 
-    # Send request and fetch result as a pandas DataFrame
+    # Convert result from dataframe to PyArrow table
+    pa_table = pa.Table.from_pandas(result_df)
+    pa_schema = pa.Schema.from_pandas(result_df)
+
+    # Send request to write the data using arrow flight
     try:
-        writer, _ = client.do_put(fl.FlightDescriptor.for_command(json.dumps(request)),
-                          results.schema)
-        info = client.get_flight_info(fl.FlightDescriptor.for_command(json.dumps(request)))
-        reader: fl.FlightStreamReader = client.do_get(info.endpoints[0].ticket)
-        data: pd.DataFrame = reader.read_pandas()
+        writer, _ = client.do_put(fl.FlightDescriptor.for_command(json.dumps(request)), pa_schema)
+        # Note that we do not indicate the data store nor allocate a bucket in which 
+        # to write the dataset. This is all done by Fybrik.
+        writer.write_table(pa_table)
+        writer.close()
     except Exception as e:
         print("Exception sending write request to arrow flight server %s\n" % e)
         print("result endpoint: %s\n" % result_endpoint)
         return None
+
+    print("Results written to %s\n" % result_endpoint)
 
 
 def load_data(endpoint_path, dataset_id, namespace):
@@ -269,6 +276,7 @@ def train(args):
     Final_labels = (np.exp(GB_model.predict(test_features)) + np.exp(ENST_model.predict(test_features_st))) / 2
     print(Final_labels)
     print(pd.DataFrame({'Id': test.Id, 'SalePrice': Final_labels}))
+    
     ## Saving to CSV
    # import os
    # result_path = os.path.join(bucket_name, 'submission.csv')
@@ -276,6 +284,8 @@ def train(args):
 
    # with open('/result_path.txt', 'w') as f:
    #     f.write(result_path)
+    result =  pd.DataFrame({'Id': test.Id, 'SalePrice': Final_labels})
+    write_result(args,  result)
 
 if __name__ == '__main__':
     # Adding needed libraries and reading data
@@ -296,7 +306,8 @@ if __name__ == '__main__':
     parser.add_argument('--train_dataset_id', type=str)
     parser.add_argument('--test_dataset_id', type=str)
     parser.add_argument('--namespace', type=str)
-    parser.add_argument('--result_path', type=str)
+    parser.add_argument('--result_endpoint_path', type=str)
+    parser.add_argument('--result_name', type=str)
 
     args = parser.parse_args()
     train(args)

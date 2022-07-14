@@ -14,7 +14,7 @@ def _make_parent_dirs_and_return_path(file_path: str):
     return file_path
 
 # Wait until the FybrikApplication is ready, 
-# and then get the endpoints for the datasets requested.
+# and then get the endpoints for the datasets requested, and for writing the results.
 # If there is an error in FybrikApplication deployment or for one of the datasets
 # then the endpoints will be empty and an error will be returned
 def getEndpoints(args, k8s_api):
@@ -40,27 +40,43 @@ def getEndpoints(args, k8s_api):
                 fa_status = fa["status"]
                 train_ready_condition = fa_status["assetStates"][args.namespace + "/" + args.train_dataset_id]["conditions"][0]["status"]
                 test_ready_condition = fa_status["assetStates"][args.namespace + "/" + args.test_dataset_id]["conditions"][0]["status"]
+                result_ready_condition = fa_status["assetStates"][args.result_name]["conditions"][0]["status"]
+ 
+                # Check if the status of the 3 is "ready".  If so, we're good to go.
                 if "True" in train_ready_condition:
                     train_status = "Ready"
 
                 if "True" in test_ready_condition:
                     test_status = "Ready"
 
+                if "True" in result_ready_condition:
+                    result_status = "Ready"
+
+                # Check for errors
                 train_error_condition = fa_status["assetStates"][args.namespace + "/" + args.train_dataset_id]["conditions"][2]["status"]
                 test_error_condition = fa_status["assetStates"][args.namespace + "/" + args.test_dataset_id]["conditions"][2]["status"]
+                result_error_condition = fa_status["assetStates"][args.result_name]["conditions"][2]["status"]
                 if "True" in train_error_condition:
                     train_status = "Error"
 
                 if "True" in test_error_condition:
                     test_status = "Error"
 
+                if "True" in result_error_condition:
+                    result_status = "Error"
+
+                # Check for deny
                 train_deny_condition = fa_status["assetStates"][args.namespace + "/" + args.train_dataset_id]["conditions"][1]["status"]
                 test_deny_condition = fa_status["assetStates"][args.namespace + "/" + args.test_dataset_id]["conditions"][1]["status"]
+                result_deny_condition = fa_status["assetStates"][args.result_name]["conditions"][1]["status"]
                 if "True" in train_deny_condition:
                     train_status = "Deny"
 
                 if "True" in test_deny_condition:
                     test_status = "Deny"
+
+                if "True" in result_deny_condition:
+                    result_status = "Deny"
                     
         except ApiException as e:
             print("Exception when calling CustomObjectsApi->get_cluster_custom_object_status: %s\n" % e)
@@ -68,7 +84,7 @@ def getEndpoints(args, k8s_api):
 
     pprint(fa_status)
 
-    # If ready, read the status of each of the datasets
+    # If ready, read the endpoint of each of the datasets
     if train_status == "Ready":
         train_struct = fa_status["assetStates"][args.namespace + "/" + args.train_dataset_id]["endpoint"]["fybrik-arrow-flight"]
         train_endpoint = train_struct["scheme"] + "://" + train_struct["hostname"] + ":" + train_struct["port"]
@@ -77,14 +93,21 @@ def getEndpoints(args, k8s_api):
         test_struct = fa_status["assetStates"][args.namespace + "/" + args.test_dataset_id]["endpoint"]["fybrik-arrow-flight"]
         test_endpoint = test_struct["scheme"] + "://" + test_struct["hostname"] + ":" + test_struct["port"]       
 
+    if result_status == "Ready":
+        result_struct = fa_status["assetStates"][args.result_name]["endpoint"]["fybrik-arrow-flight"]
+        result_endpoint = test_struct["scheme"] + "://" + test_struct["hostname"] + ":" + test_struct["port"]       
+
     print("train_status is " + train_status + ", train_endpoint: " + train_endpoint)
     print("train_status is " + test_status + ", test_endpoint: " + test_endpoint)
+    print("result_status is " + result_status + ", result_endpoint: " + result_endpoint)
 
     # Return the two endpoints for the two datasets - by writing to files
     with open(args.train_endpoint_path, 'w') as train_file:
         train_file.write(train_endpoint)
     with open(args.test_endpoint_path, 'w') as test_file:
         test_file.write(test_endpoint)
+    with open(args.result_endpoint_path, 'w') as result_file:
+        result_file.write(result_endpoint)
 
 
 # Create a FybrikApplication with the datasets requested and the context
@@ -112,6 +135,7 @@ def createFybrikApplicationObj(args):
             "data": [
                 {
                     "dataSetID": args.namespace + "/" + args.test_dataset_id,
+                    "flow": "read",
                     "requirements": {
                         "interface": {
                             "protocol": "fybrik-arrow-flight"
@@ -120,9 +144,23 @@ def createFybrikApplicationObj(args):
                 },
                 {
                     "dataSetID": args.namespace + "/" + args.train_dataset_id,
+                    "flow": "read",
                     "requirements": {
                         "interface": {
                             "protocol": "fybrik-arrow-flight"
+                        }
+                    }
+                },
+                {
+                    "dataSetID": args.result_name,
+                    "flow": "write",
+                    "requirements": {
+                        "interface": {
+                            "protocol": "fybrik-arrow-flight"
+                        },
+                        "flowParams": {
+                            "isNewDataSet": True,
+                            "catalog": args.namespace
                         }
                     }
                 }
@@ -148,12 +186,6 @@ def createFybrikApplication(args, k8s_api):
 
 
 def doFybrikMagic(args):
-    # Creating the directory where the output file is created (the directory
-    # may or may not exist).
-#    from pathlib import Path
-#    Path(args.train_endpoint_path).parent.mkdir(parents=True, exist_ok=True)
-#    Path(args.test_endpoint_path).parent.mkdir(parents=True, exist_ok=True)
-
     # Get access to kubernetes
     try:
         config.load_incluster_config()
@@ -178,6 +210,8 @@ def doFybrikMagic(args):
             train_file.write("")
         with open(args.test_endpoint_path, 'w') as test_file:
             test_file.write("")
+        with open(args.result_endpoint_path, 'w') as result_file:
+            result_file.write("")
    
 
 
@@ -196,7 +230,8 @@ if __name__ == '__main__':
  #   parser.add_argument('--test_endpoint_path', type=str)
     parser.add_argument("--test_endpoint", dest="test_endpoint_path", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
     parser.add_argument("--train_endpoint", dest="train_endpoint_path", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
-    
+    parser.add_argument("--result_name", type=str, required=True, default=argparse.SUPPRESS)
+    parser.add_argument("--result_endpoint", dest="result_endpoint_path", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
     args = parser.parse_args()
 
     # print("Calling doFybrikMagic to create the FybrikApplication, apply it, and read its status")

@@ -6,8 +6,8 @@ inputs:
   - {name: train_dataset_id, type: String}
   - {name: test_dataset_id, type: String}
   - {name: namespace, type: String}
-outputs:
-  - {name: result_path, type: String}
+  - {name: result_name, type: String} 
+  - {name: result_endpoint_path, type: String}
 implementation:
   container:
     image: ghcr.io/fybrik/kfp-components/train_model
@@ -17,4 +17,5 @@ implementation:
            '--train_dataset_id', {inputValue: train_dataset_id},
            '--test_dataset_id', {inputValue: test_dataset_id},
            '--namespace', {inputValue: namespace},
-           '--result_path', {outputPath: result_path}]
+           '--result_name', {inputValue: result_name}, 
+           '--result_endpoint_path', {inputPath: result_endpoint_path}]

@@ -20,11 +20,12 @@ def houseprice_pipeline(
     test_endpoint_path = './test.txt'
     mlpipeline_metrics = './mlpipeline_metadata.json'
     result_path = './result.txt'
+    result_name = "submission-" + str(run_name)
 
 #    downloadDataOp = components.load_component_from_file('./download_dataset/component.yaml')
 #    downloadDataStep = downloadDataOp(bucket_name='test-bucket').apply(use_gcp_secret('user-gcp-sa'))
     getDataEndpointsOp = components.load_component_from_file('../../get_data_endpoints/component.yaml')
-    getDataEndpointsStep = getDataEndpointsOp(train_dataset_id=train_dataset_id, test_dataset_id=test_dataset_id, namespace=namespace, intent=intent, run_name=run_name)
+    getDataEndpointsStep = getDataEndpointsOp(train_dataset_id=train_dataset_id, test_dataset_id=test_dataset_id, namespace=namespace, intent=intent, run_name=run_name, result_name=result_name)
  
     visualizeTableOp = components.load_component_from_file('./visualize_table/component.yaml')
     visualizeTableStep = visualizeTableOp(train_endpoint='%s'% getDataEndpointsStep.outputs['train_endpoint'], train_dataset_id=train_dataset_id, namespace=namespace)
@@ -33,10 +34,11 @@ def houseprice_pipeline(
     trainModelOp = components.load_component_from_file('./train_model/component.yaml')
     trainModelStep = trainModelOp(train_endpoint_path='%s' % getDataEndpointsStep.outputs['train_endpoint'],
                                   test_endpoint_path='%s' % getDataEndpointsStep.outputs['test_endpoint'],
+                                  result_name=result_name,
+                                  result_endpoint_path='%s' % getDataEndpointsStep.outputs['result_endpoint'],
                                   train_dataset_id=train_dataset_id,
                                   test_dataset_id=test_dataset_id,
                                   namespace=namespace)
-                                #  result_path=result_path)
 
 if __name__ == '__main__':
 

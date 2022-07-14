@@ -1,0 +1,10 @@
+apiVersion:   app.fybrik.io/v1alpha1
+kind:         FybrikStorageAccount
+metadata:
+  name: kfp-storage-account
+  namespace: fybrik-system
+spec:
+  id: kfp-object-store
+  region: australia
+  endpoint: "s3.eu-de.cloud-object-storage.appdomain.cloud"
+  secretRef:  house-price-demo-secret
