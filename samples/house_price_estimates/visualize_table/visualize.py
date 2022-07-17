@@ -63,7 +63,10 @@ def datatable(
             }]
         }
     print(metadata)
-    print(train_file.sample)
+
+    # Show a sample of the data from the first 5 columns
+    someCols = train_file.iloc[:, :7]
+    print(someCols.head(10))
 
     # Write the schema to the metadata file
  #   try:

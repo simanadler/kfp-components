@@ -11,6 +11,7 @@ outputs:
   - {name: test_endpoint, type: String}
   - {name: train_endpoint, type: String}
   - {name: result_endpoint, type: String}
+  - {name: result_catalogid, type: String}
 implementation:
   container:
     image: ghcr.io/fybrik/kfp-components/get_data_endpoints:latest
@@ -24,4 +25,5 @@ implementation:
       --result_name, {inputValue: result_name},
       --test_endpoint, {outputPath: test_endpoint},
       --train_endpoint, {outputPath: train_endpoint},
-      --result_endpoint, {outputPath: result_endpoint}]
+      --result_endpoint, {outputPath: result_endpoint},
+      --result_catalogid, {outputPath: result_catalogid}]

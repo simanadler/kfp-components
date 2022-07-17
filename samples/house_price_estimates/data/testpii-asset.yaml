@@ -1,0 +1,31 @@
+apiVersion: katalog.fybrik.io/v1alpha1
+kind: Asset
+metadata:
+  name: testpii-csv
+spec:
+  secretRef: 
+    name: house-price-demo-secret
+  details:
+    dataFormat: csv
+    connection:
+      name: s3
+      s3:
+        endpoint: "s3.eu-de.cloud-object-storage.appdomain.cloud"
+        bucket: "house-price-demo"
+        object_key: "testwithpi.csv"
+  metadata:
+    name: kaggle data with pii added
+    geography: Netherlands
+    tags:
+      finance: false
+      housing: true
+    columns:
+      - name: SellerName
+        tags:
+          PII: true
+      - name: SellerEmail
+        tags:
+          PII: true
+      - name: SellerPhone
+        tags:
+          PII: true
