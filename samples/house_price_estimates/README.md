@@ -9,35 +9,28 @@ Please note that data is read/written via the arrow-flight protocol in this exam
 A more detailed explanation of the goals, architecture, and demo screen shots can be found [here](https://drive.google.com/file/d/1xn7pGe5pEAEZxnIzDdom9r7K6s78alcP/view?usp=sharing).
 
 ## Prerequisits
-* [Install kubeflow pipelines](https://www.kubeflow.org/docs/components/pipelines/installation/overview/#kubeflow-pipelines-standalone) configured to work with the demo katalog implementation.
-* [Install Fybrik](https://fybrik.io/v1.0/get-started/quickstart/) using OPA as the governance engine
-* Deploy [Datashim](https://datashim.io/)
-```
-kubectl apply -f kubectl apply -f https://raw.githubusercontent.com/datashim-io/datashim/master/release-tools/manifests/dlf-ibm-oc.yaml
-```
+* [get_data_endpoints prerequisits and setup](../../get_data_endpoints/README.md)
+
 
 ## Usage
+The sample provided assumes that you have put the [training](./data/trainwithpi.csv) and [testing](./data/testwithpi.csv) data sets in some type of data store, for which you have the endpoint and credentials.  The data will be read via arrow-flight protocol.
+
+This example also assumes that Fybrik is configured to use [katalog](https://fybrik.io/v1.0/reference/katalog/) as a data catalog, and OPA is configured as Fybrik's data governance policy manager.  These are the defaults in [Fybrik's quick start](https://fybrik.io/v1.0/get-started/quickstart/)
 
 ### Prepare Data Assets and Storage
-From within the data folder perfrom the following steps.
+From within the data folder perform the following steps.
 
-Edit the following files to include the relevant details of where your data is stored.  They currently refer to an IBM cloud object store instance.
+Edit the following files to include the relevant details of where your data is stored.  They currently refer to an IBM cloud object store instance, but use an object store of your choice such as AWS S3, IBM Cloud Object Storage or Ceph.
 * house-price-demo-secret.yaml
-* test-asset.yaml
-* train-asset.yaml
+* testpii-asset.yaml
+* trainpii-asset.yaml
 
 Register in the Data Catalog (katalog) the training and testing data to be used by the pipeline, noting the catalog ID of each.
 ```
-	Kubectl apply -f house-price-demo-secret.yaml -n kubeflow
-	Kubectl apply -f test-asset.yaml -n kubeflow
-    Kubectl apply -f train-asset.yaml -n kubeflow
+kubectl apply -f house-price-demo-secret.yaml -n kubeflow
+kubectl apply -f testpii-asset.yaml -n kubeflow
+kubectl apply -f trainpii-asset.yaml -n kubeflow
 ```
-
-[Register a storage account](https://fybrik.io/v1.0/samples/notebook-write/#deploy-resources-for-write-scenarios) in which the results can be written.  It assumes the same storage account as the train and test datasets, and thus uses the same secret.
-```
-    kubectl apply -f kfp-storage-account.yaml -n fybrik-system
-```
-
 
 ### Register Governance Policies
 
@@ -45,39 +38,49 @@ From within the data folder run the following commands to register the data gove
 
 Read Policy:
 ```
-    kubectl -n fybrik-system create configmap pii-read-policy --from-file=pii-read-policy.rego
+kubectl -n fybrik-system create configmap pii-read-policy --from-file=pii-read-policy.rego
 		
-    kubectl -n fybrik-system label configmap pii-read-policy openpolicyagent.org/policy=rego
+kubectl -n fybrik-system label configmap pii-read-policy openpolicyagent.org/policy=rego
 		
-    while [[ $(kubectl get cm pii-read-policy -n fybrik-system -o 'jsonpath={.metadata.annotations.openpolicyagent\.org/policy-status}') != '{"status":"ok"}' ]]; do echo "waiting for policy to be applied" && sleep 5; done
+while [[ $(kubectl get cm pii-read-policy -n fybrik-system -o 'jsonpath={.metadata.annotations.openpolicyagent\.org/policy-status}') != '{"status":"ok"}' ]]; do echo "waiting for policy to be applied" && sleep 5; done
 ```
 
 
 Write Policy:
 ```
-    kubectl -n fybrik-system create configmap allow-write-policy --from-file=allow-write-policy.rego
+kubectl -n fybrik-system create configmap allow-write-policy --from-file=allow-write-policy.rego
 		
-    kubectl -n fybrik-system label configmap allow-write-policy openpolicyagent.org/policy=rego
+kubectl -n fybrik-system label configmap allow-write-policy openpolicyagent.org/policy=rego
 		
-    while [[ $(kubectl get cm allow-write-policy -n fybrik-system -o 'jsonpath={.metadata.annotations.openpolicyagent\.org/policy-status}') != '{"status":"ok"}' ]]; do echo "waiting for policy to be applied" && sleep 5; done
+while [[ $(kubectl get cm allow-write-policy -n fybrik-system -o 'jsonpath={.metadata.annotations.openpolicyagent\.org/policy-status}') != '{"status":"ok"}' ]]; do echo "waiting for policy to be applied" && sleep 5; done
 
 ```
 
 ### Compile Pipeline
-From within samples/house_price_estimate run the following, which will create a file called pipeline.yaml.
+From within samples/house_price_estimate run one of the following.
+
+If your kubeflow pipeline deployment uses Argo Workflows (the default):
 ```
-python3 pipeline.py
+python3 pipelinev1argo.py
 ```
+This will result in a file called pipelinev1argo.yaml.
+
+
+If you deployed kubeflow pipeline with tekton as the workflow manager:
+```
+python3 pipelinev1tekton.py
+```
+This will result in a file called pipelinev1tekton.yaml.
 
 ### Upload Pipeline
-Upload the file pipeline.yaml via the Kubeflow Pipeline GUI.
+Upload the file yaml file via the Kubeflow Pipeline GUI.
 
 See slide 17 of the [demo presentation](https://drive.google.com/file/d/1xn7pGe5pEAEZxnIzDdom9r7K6s78alcP/view?usp=sharing).
 
 ### Run the Pipeline
 Create a pipeline run via the Kubeflow Pipeline GUI, providing the following parameters:
-* train_dataset_id:  trainpii-csv
 * test_dataset_id: testpii-csv
+* train_dataset_id:  trainpii-csv
 * namespace: kubeflow
 * intent: PriceEstimates
 * run_name: name of your choice - in lowercase

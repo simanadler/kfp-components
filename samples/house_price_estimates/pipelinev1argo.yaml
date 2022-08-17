@@ -1,0 +1,214 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: fybrik-housing-price-estimate-pipeline-
+  annotations: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.13, pipelines.kubeflow.org/pipeline_compilation_time: '2022-08-17T10:05:40.861805',
+    pipelines.kubeflow.org/pipeline_spec: '{"description": "Pipeline that provides
+      data policy governed access to cataloged data, analyses data, trains model,
+      and writes the results and catalogs them", "inputs": [{"name": "test_dataset_id",
+      "type": "String"}, {"name": "train_dataset_id", "type": "String"}, {"name":
+      "run_name", "type": "String"}, {"name": "intent", "type": "String"}, {"name":
+      "namespace", "type": "String"}], "name": "Fybrik housing price estimate pipeline"}'}
+  labels: {pipelines.kubeflow.org/kfp_sdk_version: 1.8.13}
+spec:
+  entrypoint: fybrik-housing-price-estimate-pipeline
+  templates:
+  - name: fybrik-housing-price-estimate-pipeline
+    inputs:
+      parameters:
+      - {name: intent}
+      - {name: namespace}
+      - {name: run_name}
+      - {name: test_dataset_id}
+      - {name: train_dataset_id}
+    dag:
+      tasks:
+      - name: get-data-endpoints
+        template: get-data-endpoints
+        arguments:
+          parameters:
+          - {name: intent, value: '{{inputs.parameters.intent}}'}
+          - {name: namespace, value: '{{inputs.parameters.namespace}}'}
+          - {name: run_name, value: '{{inputs.parameters.run_name}}'}
+          - {name: test_dataset_id, value: '{{inputs.parameters.test_dataset_id}}'}
+          - {name: train_dataset_id, value: '{{inputs.parameters.train_dataset_id}}'}
+      - name: submit-result
+        template: submit-result
+        dependencies: [get-data-endpoints, train-model]
+        arguments:
+          artifacts:
+          - {name: get-data-endpoints-result_catalogid, from: '{{tasks.get-data-endpoints.outputs.artifacts.get-data-endpoints-result_catalogid}}'}
+      - name: train-model
+        template: train-model
+        dependencies: [get-data-endpoints, visualize-table]
+        arguments:
+          parameters:
+          - {name: namespace, value: '{{inputs.parameters.namespace}}'}
+          - {name: run_name, value: '{{inputs.parameters.run_name}}'}
+          - {name: test_dataset_id, value: '{{inputs.parameters.test_dataset_id}}'}
+          - {name: train_dataset_id, value: '{{inputs.parameters.train_dataset_id}}'}
+          artifacts:
+          - {name: get-data-endpoints-result_endpoint, from: '{{tasks.get-data-endpoints.outputs.artifacts.get-data-endpoints-result_endpoint}}'}
+          - {name: get-data-endpoints-test_endpoint, from: '{{tasks.get-data-endpoints.outputs.artifacts.get-data-endpoints-test_endpoint}}'}
+          - {name: get-data-endpoints-train_endpoint, from: '{{tasks.get-data-endpoints.outputs.artifacts.get-data-endpoints-train_endpoint}}'}
+      - name: visualize-table
+        template: visualize-table
+        dependencies: [get-data-endpoints]
+        arguments:
+          parameters:
+          - {name: namespace, value: '{{inputs.parameters.namespace}}'}
+          - {name: train_dataset_id, value: '{{inputs.parameters.train_dataset_id}}'}
+          artifacts:
+          - {name: get-data-endpoints-train_endpoint, from: '{{tasks.get-data-endpoints.outputs.artifacts.get-data-endpoints-train_endpoint}}'}
+  - name: get-data-endpoints
+    container:
+      args: [--train_dataset_id, '{{inputs.parameters.test_dataset_id}}', --test_dataset_id,
+        '{{inputs.parameters.train_dataset_id}}', --run_name, '{{inputs.parameters.run_name}}',
+        --namespace, '{{inputs.parameters.namespace}}', --intent, '{{inputs.parameters.intent}}',
+        --result_name, 'submission-{{inputs.parameters.run_name}}', --test_endpoint,
+        /tmp/outputs/test_endpoint/data, --train_endpoint, /tmp/outputs/train_endpoint/data,
+        --result_endpoint, /tmp/outputs/result_endpoint/data, --result_catalogid,
+        /tmp/outputs/result_catalogid/data]
+      command: [python3, get_data_endpoints.py]
+      image: ghcr.io/fybrik/kfp-components/get_data_endpoints:latest
+    inputs:
+      parameters:
+      - {name: intent}
+      - {name: namespace}
+      - {name: run_name}
+      - {name: test_dataset_id}
+      - {name: train_dataset_id}
+    outputs:
+      artifacts:
+      - {name: get-data-endpoints-result_catalogid, path: /tmp/outputs/result_catalogid/data}
+      - {name: get-data-endpoints-result_endpoint, path: /tmp/outputs/result_endpoint/data}
+      - {name: get-data-endpoints-test_endpoint, path: /tmp/outputs/test_endpoint/data}
+      - {name: get-data-endpoints-train_endpoint, path: /tmp/outputs/train_endpoint/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.13
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"description": "returns
+          endpoints via which the datasets may be accessed", "implementation": {"container":
+          {"args": ["--train_dataset_id", {"inputValue": "test_dataset_id"}, "--test_dataset_id",
+          {"inputValue": "train_dataset_id"}, "--run_name", {"inputValue": "run_name"},
+          "--namespace", {"inputValue": "namespace"}, "--intent", {"inputValue": "intent"},
+          "--result_name", {"inputValue": "result_name"}, "--test_endpoint", {"outputPath":
+          "test_endpoint"}, "--train_endpoint", {"outputPath": "train_endpoint"},
+          "--result_endpoint", {"outputPath": "result_endpoint"}, "--result_catalogid",
+          {"outputPath": "result_catalogid"}], "command": ["python3", "get_data_endpoints.py"],
+          "image": "ghcr.io/fybrik/kfp-components/get_data_endpoints:latest"}}, "inputs":
+          [{"name": "test_dataset_id", "type": "String"}, {"name": "train_dataset_id",
+          "type": "String"}, {"name": "run_name", "type": "String"}, {"name": "namespace",
+          "type": "String"}, {"name": "intent", "type": "String"}, {"name": "result_name",
+          "type": "String"}], "name": "get data endpoints", "outputs": [{"name": "test_endpoint",
+          "type": "String"}, {"name": "train_endpoint", "type": "String"}, {"name":
+          "result_endpoint", "type": "String"}, {"name": "result_catalogid", "type":
+          "String"}]}', pipelines.kubeflow.org/component_ref: '{"digest": "64cc34047faadce1941757359ae908ec0a923c9f2a823e249586bc5d523b1978",
+          "url": "../../get_data_endpoints/component.yaml"}', pipelines.kubeflow.org/arguments.parameters: '{"intent":
+          "{{inputs.parameters.intent}}", "namespace": "{{inputs.parameters.namespace}}",
+          "result_name": "submission-{{inputs.parameters.run_name}}", "run_name":
+          "{{inputs.parameters.run_name}}", "test_dataset_id": "{{inputs.parameters.test_dataset_id}}",
+          "train_dataset_id": "{{inputs.parameters.train_dataset_id}}"}'}
+  - name: submit-result
+    container:
+      args: [--result_catalogid, /tmp/inputs/result_catalogid/data]
+      command: [python3, submit_result.py]
+      image: ghcr.io/fybrik/kfp-components/submit_result:latest
+    inputs:
+      artifacts:
+      - {name: get-data-endpoints-result_catalogid, path: /tmp/inputs/result_catalogid/data}
+    outputs:
+      artifacts:
+      - {name: mlpipeline-ui-metadata, path: /tmp/outputs/MLPipeline_UI_metadata/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.13
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"description": "submit
+          prediction result to catalog", "implementation": {"container": {"args":
+          ["--result_catalogid", {"inputPath": "result_catalogid"}], "command": ["python3",
+          "submit_result.py"], "image": "ghcr.io/fybrik/kfp-components/submit_result:latest"}},
+          "inputs": [{"name": "result_catalogid", "type": "String"}], "name": "submit
+          result", "outputs": [{"name": "MLPipeline UI metadata", "type": "UI metadata"}]}',
+        pipelines.kubeflow.org/component_ref: '{"digest": "b30cce1448118aefb0c16a203cfb1050d3808a9cf0a0fa24f73a6c8b265f0e46",
+          "url": "./submit_result/component.yaml"}'}
+  - name: train-model
+    container:
+      args: [--train_endpoint_path, /tmp/inputs/train_endpoint_path/data, --test_endpoint_path,
+        /tmp/inputs/test_endpoint_path/data, --train_dataset_id, '{{inputs.parameters.train_dataset_id}}',
+        --test_dataset_id, '{{inputs.parameters.test_dataset_id}}', --namespace, '{{inputs.parameters.namespace}}',
+        --result_name, 'submission-{{inputs.parameters.run_name}}', --result_endpoint_path,
+        /tmp/inputs/result_endpoint_path/data]
+      command: [python3, train.py]
+      image: ghcr.io/fybrik/kfp-components/train_model
+    inputs:
+      parameters:
+      - {name: namespace}
+      - {name: run_name}
+      - {name: test_dataset_id}
+      - {name: train_dataset_id}
+      artifacts:
+      - {name: get-data-endpoints-result_endpoint, path: /tmp/inputs/result_endpoint_path/data}
+      - {name: get-data-endpoints-test_endpoint, path: /tmp/inputs/test_endpoint_path/data}
+      - {name: get-data-endpoints-train_endpoint, path: /tmp/inputs/train_endpoint_path/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.13
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"description": "train
+          and test", "implementation": {"container": {"args": ["--train_endpoint_path",
+          {"inputPath": "train_endpoint_path"}, "--test_endpoint_path", {"inputPath":
+          "test_endpoint_path"}, "--train_dataset_id", {"inputValue": "train_dataset_id"},
+          "--test_dataset_id", {"inputValue": "test_dataset_id"}, "--namespace", {"inputValue":
+          "namespace"}, "--result_name", {"inputValue": "result_name"}, "--result_endpoint_path",
+          {"inputPath": "result_endpoint_path"}], "command": ["python3", "train.py"],
+          "image": "ghcr.io/fybrik/kfp-components/train_model"}}, "inputs": [{"name":
+          "train_endpoint_path", "type": "String"}, {"name": "test_endpoint_path",
+          "type": "String"}, {"name": "train_dataset_id", "type": "String"}, {"name":
+          "test_dataset_id", "type": "String"}, {"name": "namespace", "type": "String"},
+          {"name": "result_name", "type": "String"}, {"name": "result_endpoint_path",
+          "type": "String"}], "name": "train model"}', pipelines.kubeflow.org/component_ref: '{"digest":
+          "b24e0a1d196d6438d123e44a58e87ce6b742a5149542cbc060a803b0f004d6b1", "url":
+          "./train_model/component.yaml"}', pipelines.kubeflow.org/arguments.parameters: '{"namespace":
+          "{{inputs.parameters.namespace}}", "result_name": "submission-{{inputs.parameters.run_name}}",
+          "test_dataset_id": "{{inputs.parameters.test_dataset_id}}", "train_dataset_id":
+          "{{inputs.parameters.train_dataset_id}}"}'}
+  - name: visualize-table
+    container:
+      args: [--train_endpoint, /tmp/inputs/train_endpoint/data, --train_dataset_id,
+        '{{inputs.parameters.train_dataset_id}}', --namespace, '{{inputs.parameters.namespace}}']
+      command: [python3, visualize.py]
+      image: ghcr.io/fybrik/kfp-components/visualize_table:latest
+    inputs:
+      parameters:
+      - {name: namespace}
+      - {name: train_dataset_id}
+      artifacts:
+      - {name: get-data-endpoints-train_endpoint, path: /tmp/inputs/train_endpoint/data}
+    metadata:
+      labels:
+        pipelines.kubeflow.org/kfp_sdk_version: 1.8.13
+        pipelines.kubeflow.org/pipeline-sdk-type: kfp
+        pipelines.kubeflow.org/enable_caching: "true"
+      annotations: {pipelines.kubeflow.org/component_spec: '{"description": "visualize
+          dataset in table", "implementation": {"container": {"args": ["--train_endpoint",
+          {"inputPath": "train_endpoint"}, "--train_dataset_id", {"inputValue": "train_dataset_id"},
+          "--namespace", {"inputValue": "namespace"}], "command": ["python3", "visualize.py"],
+          "image": "ghcr.io/fybrik/kfp-components/visualize_table:latest"}}, "inputs":
+          [{"name": "train_endpoint", "type": "String"}, {"name": "train_dataset_id",
+          "type": "String"}, {"name": "namespace", "type": "String"}], "name": "visualize
+          table"}', pipelines.kubeflow.org/component_ref: '{"digest": "4cf81356bc11d24c1893120f2bc6b99ab90b6ce66cc5d5357539d0dfaf6ad95b",
+          "url": "./visualize_table/component.yaml"}', pipelines.kubeflow.org/arguments.parameters: '{"namespace":
+          "{{inputs.parameters.namespace}}", "train_dataset_id": "{{inputs.parameters.train_dataset_id}}"}'}
+  arguments:
+    parameters:
+    - {name: test_dataset_id}
+    - {name: train_dataset_id}
+    - {name: run_name}
+    - {name: intent}
+    - {name: namespace}
+  serviceAccountName: pipeline-runner

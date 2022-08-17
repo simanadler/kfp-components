@@ -34,7 +34,7 @@ def getEndpoints(args, k8s_api):
         try:
             fa = k8s_api.get_namespaced_custom_object_status(
                 group="app.fybrik.io", 
-                version="v1alpha1",
+                version="v1beta1",
                 name=args.run_name,
                 plural="fybrikapplications",
                 namespace=args.namespace
@@ -123,7 +123,7 @@ def getEndpoints(args, k8s_api):
 # Create a FybrikApplication with the datasets requested and the context
 def createFybrikApplicationObj(args):
     fybrikApp = {
-        "apiVersion": "app.fybrik.io/v1alpha1",
+        "apiVersion": "app.fybrik.io/v1beta1",
         "kind": "FybrikApplication",
         "metadata": {
             "name": args.run_name,
@@ -188,7 +188,7 @@ def createFybrikApplication(args, k8s_api):
     print(fa)
 
     try:
-        resp = k8s_api.create_namespaced_custom_object(body=fa, namespace=args.namespace, group="app.fybrik.io", version="v1alpha1", plural="fybrikapplications")
+        resp = k8s_api.create_namespaced_custom_object(body=fa, namespace=args.namespace, group="app.fybrik.io", version="v1beta1", plural="fybrikapplications")
         return True
     except ApiException as e:
         print("Exception when calling CustomObjectsApi->create_namespaced_custom_object: %s\n" % e)
@@ -205,11 +205,9 @@ def doFybrikMagic(args):
         except config.ConfigException:
             raise Exception("Could not configure kubernetes python client")
 
-    # Configure API key authorization: BearerToken
-    #configuration = client.Configuration()
     k8s_api = client.CustomObjectsApi()
 
-       # When the status is ready, get the endpoints from the FybrikApplication status
+    # When the status is ready, get the endpoints from the FybrikApplication status
     succeeded = createFybrikApplication(args, k8s_api)
 
     if (succeeded):

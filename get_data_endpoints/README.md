@@ -1,18 +1,37 @@
 # Fybrik KFP component
 
-This is a component that can be used in Kubeflow Pipelines to read test and training data, and to write the results of whatever
+This is a component that can be used in Kubeflow Pipelines to read two input datasets (ex: test and training data), and to write the results of whatever
 processing is done on that data **in a secure and governed fashion by leveraging Fybrik**
 
-It is assumed that Fybrik is installed together with the chosen Data Catalog and Data Governance engine, and that ...
+It is assumed that Fybrik is installed together with the chosen Data Catalog and Data Governance engine, and that:
 * training and testing datasets have been registered in the data catalog
 * governance policies have been defined in the Data Governance engine
 
 ## Prerequisits
 * [Install kubeflow pipelines](https://www.kubeflow.org/docs/components/pipelines/installation/overview/#kubeflow-pipelines-standalone)
 * [Install Fybrik](https://fybrik.io/v1.0/get-started/quickstart/)
+* [Deploy Datashim](https://github.com/datashim-io/datashim)
 
 This component is compatible with Fybrik v1.0.
 
+## Setup
+
+### Priveleges
+Ensure that the pipeline has the appropriate RBAC priveleges to create the FybrikApplication from the pipeline.
+
+```
+kubectl apply -f rbac_resources.yaml -n kubeflow
+```
+
+### Storage for Write and Copy Flows
+[Register a storage account](https://fybrik.io/v1.0/samples/notebook-write/#deploy-resources-for-write-scenarios) in which the results can be written.  Example files are provided.  Please change the values in these files with storage endpoint and credential details.  
+
+Note: Make sure that the endpoint is prefixed with https://
+
+```
+kubectl apply -f kfp-storage-secret.yaml -n fybrik-system
+kubectl apply -f kfp-storage-account.yaml -n fybrik-system
+```
 
 ## Usage
 
@@ -24,7 +43,6 @@ Input:
 * namespace - namespace in which the FybrikApplication yaml is applied (recommend using kubeflow namespace)
 * intent - purpose for which the data is being used
 * run_name - name of the run instance - lowercase letters only
-* result_name - name of the result file to be generated
 
 Outputs:
 * train_endpoint - virtual endpoint used to read the training data
@@ -45,7 +63,8 @@ def pipeline(
     # Where to store parameters passed between workflow steps
     result_name = "submission-" + str(run_name)
 
- ==>   getDataEndpointsOp = components.load_component_from_file('../../get_data_endpoints/component.yaml') 
+
+    getDataEndpointsOp = components.load_component_from_file('https://github.com/fybrik/kfp-components/blob/master/get_data_endpoints/component.yaml') 
     getDataEndpointsStep = getDataEndpointsOp(train_dataset_id=train_dataset_id, test_dataset_id=test_dataset_id, namespace=namespace, intent=intent, run_name=run_name, result_name=result_name)
 
     ...
