@@ -48,6 +48,7 @@ while [[ $(kubectl get cm pii-read-policy -n fybrik-system -o 'jsonpath={.metada
 ```
 
 The write policy allows all data to be written to any location registered with Fybrik as per the [prequisits](../../get_data_endpoints/README.md).
+
 Write Policy:
 ```
 kubectl -n fybrik-system create configmap allow-write-policy --from-file=allow-write-policy.rego
