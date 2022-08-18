@@ -47,7 +47,7 @@ kubectl -n fybrik-system label configmap pii-read-policy openpolicyagent.org/pol
 while [[ $(kubectl get cm pii-read-policy -n fybrik-system -o 'jsonpath={.metadata.annotations.openpolicyagent\.org/policy-status}') != '{"status":"ok"}' ]]; do echo "waiting for policy to be applied" && sleep 5; done
 ```
 
-The write policy allows all data to be written to any location registered with Fybrik (as per the [prequisits](../../get_data_endpoints/README.md).
+The write policy allows all data to be written to any location registered with Fybrik as per the [prequisits](../../get_data_endpoints/README.md).
 Write Policy:
 ```
 kubectl -n fybrik-system create configmap allow-write-policy --from-file=allow-write-policy.rego
