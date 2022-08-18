@@ -1,6 +1,7 @@
 from pathlib import Path
 from pickletools import read_stringnl_noescape
 from sre_constants import SUCCESS
+import sys
 
 def _make_parent_dirs_and_return_path(file_path: str):
     import os
@@ -25,16 +26,16 @@ def datatable(
     except Exception as e:
         print("Error getting endpoint from file: %s\n" % e)
         print("endpoint path = %s\n" % train_endpoint_path)
-        return False
+        sys.exit(e)
 
     # Read the file from cos using arrow-flight
     # Create a Flight client
     try:
         client = fl.connect(endpoint)
     except Exception as e:
-        print("Exception when connection to arrow flight server %s\n" % e)
+        print("Exception when connecting to arrow flight server %s\n" % e)
         print("train data endpoint: %s\n" % args.train_endpoint)
-        return False
+        sys.exit(e)
     
 
     # Prepare the request
@@ -49,7 +50,7 @@ def datatable(
     except Exception as e:
         print("Exception sending read request to arrow flight server %s\n" % e)
         print("train data endpoint: %s\n" % endpoint)
-        return False
+        sys.exit(e)
 
  #   train_file = pd.read_csv(train_file_path)
     header = train_file.columns.tolist()
@@ -77,8 +78,6 @@ def datatable(
  #       print("Error writing metadata: %s\n" % e)
  #       print("metrics_path: " + MLPipeline_Metrics + "\n")
 
-    return True
-
 
 if __name__ == '__main__':
     import argparse
@@ -92,5 +91,5 @@ if __name__ == '__main__':
 
  #   datatable(args.train_file_path, args.train_dataset_id, args.mlpipeline_metrics)
  #   success = datatable(args.train_endpoint_path, args.train_dataset_id, args.namespace, args.MLPipeline_Metrics)
-    success = datatable(args.train_endpoint_path, args.train_dataset_id, args.namespace)
-    print("Succeeded in reading training data: " + str(success) + "\n")
+    datatable(args.train_endpoint_path, args.train_dataset_id, args.namespace)
+    print("Succeeded in reading training data\n")

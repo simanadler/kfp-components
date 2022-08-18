@@ -14,7 +14,7 @@ It is assumed that Fybrik is installed together with the chosen Data Catalog and
 
 This component is compatible with Fybrik v1.0.
 
-## Setup
+## Setup for Using this Component
 
 ### Priveleges
 Ensure that the pipeline has the appropriate RBAC priveleges to create the FybrikApplication from the pipeline.
@@ -40,9 +40,6 @@ The component receives the following parameters, all of which are strings.
 Input:
 * train_dataset_id -  data catalog ID of the dataset on which the ML model is trained
 * test_dataset_id - data catalog ID of the dataset containing the testing data
-* namespace - namespace in which the FybrikApplication yaml is applied (recommend using kubeflow namespace)
-* intent - purpose for which the data is being used
-* run_name - name of the run instance - lowercase letters only
 
 Outputs:
 * train_endpoint - virtual endpoint used to read the training data
@@ -54,28 +51,40 @@ Outputs:
 ```
 def pipeline(
     test_dataset_id: str,
-    train_dataset_id: str,
-    run_name: str,
-    intent: str,
-    namespace: str
+    train_dataset_id: str
 ):
        
     # Where to store parameters passed between workflow steps
     result_name = "submission-" + str(run_name)
 
+    # Default - could also be read from the environment
+    namespace = kubeflow
+    
+    # Get the ID of the run.  Make sure it's lower case and starts with a letter 
+    run_name = "run-" + dsl.RUN_ID_PLACEHOLDER.lower()
 
-    getDataEndpointsOp = components.load_component_from_file('https://github.com/fybrik/kfp-components/blob/master/get_data_endpoints/component.yaml') 
-    getDataEndpointsStep = getDataEndpointsOp(train_dataset_id=train_dataset_id, test_dataset_id=test_dataset_id, namespace=namespace, intent=intent, run_name=run_name, result_name=result_name)
+    getDataEndpointsOp = components.load_component_from_file(
+        'https://github.com/fybrik/kfp-components/blob/master/get_data_endpoints/component.yaml') 
 
-    ...
+    getDataEndpointsStep = getDataEndpointsOp(
+        train_dataset_id=train_dataset_id, test_dataset_id=test_dataset_id, namespace=namespace, run_name=run_name, result_name=result_name)
+
+    #...
 
     trainModelOp = components.load_component_from_file('./train_model/component.yaml')
     trainModelStep = trainModelOp(train_endpoint_path='%s' % getDataEndpointsStep.outputs['train_endpoint'],
-                                test_endpoint_path='%s' % getDataEndpointsStep.outputs['test_endpoint'],
-                                result_name=result_name,
-                                result_endpoint_path='%s' % getDataEndpointsStep.outputs['result_endpoint'],
-                                train_dataset_id=train_dataset_id,
-                                test_dataset_id=test_dataset_id,
-                                namespace=namespace)
+        test_endpoint_path='%s' % getDataEndpointsStep.outputs['test_endpoint'],
+        result_name=result_name,
+        result_endpoint_path='%s' % getDataEndpointsStep.outputs['result_endpoint'],
+        train_dataset_id=train_dataset_id,
+        test_dataset_id=test_dataset_id,
+        namespace=namespace)
 ```
 
+## Development
+If you wish to enhance or contribute to this component, please note that it is written in python and packaged as a docker image.
+
+To build the docker image use:
+```
+sh build_image.sh
+```

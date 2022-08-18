@@ -23,6 +23,7 @@ import pandas as pd
 import json
 import pyarrow.flight as fl
 import pyarrow as pa
+import sys
 
 def write_result(args, result_df):
     # Get the endpoint for writing the results
@@ -33,7 +34,7 @@ def write_result(args, result_df):
     except Exception as e:
         print("Error getting write endpoint from file: %s\n" % e)
         print("result_endpoint_path: %s\n" % args.result_endpoint_path)
-        return None
+        sys.exit(e)
 
     
     # Create a Flight client
@@ -42,7 +43,7 @@ def write_result(args, result_df):
     except Exception as e:
         print("Exception when connection to arrow flight server %s\n" % e)
         print("result endpoint: %s\n" % result_endpoint)
-        return None
+        sys.exit(e)
 
     # Prepare the request
     request = { 'asset': args.result_name } 
@@ -61,7 +62,7 @@ def write_result(args, result_df):
     except Exception as e:
         print("Exception sending write request to arrow flight server %s\n" % e)
         print("result endpoint: %s\n" % result_endpoint)
-        return None
+        sys.exit(e)
 
     print("Results written to %s\n" % result_endpoint)
 
@@ -76,7 +77,7 @@ def load_data(endpoint_path, dataset_id, namespace):
     except Exception as e:
         print("Error getting endpoint from file: %s\n" % e)
         print("endpoint path = %s\n" % endpoint_path)
-        return None
+        sys.exit(e)
 
     # Read the file from cos using arrow-flight
     # Create a Flight client
@@ -85,7 +86,7 @@ def load_data(endpoint_path, dataset_id, namespace):
     except Exception as e:
         print("Exception when connection to arrow flight server %s\n" % e)
         print("train data endpoint: %s\n" % args.endpoint)
-        return None
+        sys.exit(e)
     
 
     # Prepare the request
@@ -100,7 +101,7 @@ def load_data(endpoint_path, dataset_id, namespace):
     except Exception as e:
         print("Exception sending read request to arrow flight server %s\n" % e)
         print("train data endpoint: %s\n" % endpoint)
-        return None
+        sys.exit(e)
 
     return data
 
@@ -277,13 +278,6 @@ def train(args):
     print(Final_labels)
     print(pd.DataFrame({'Id': test.Id, 'SalePrice': Final_labels}))
     
-    ## Saving to CSV
-   # import os
-   # result_path = os.path.join(bucket_name, 'submission.csv')
-   # pd.DataFrame({'Id': test.Id, 'SalePrice': Final_labels}).to_csv(result_path, index =False)
-
-   # with open('/result_path.txt', 'w') as f:
-   #     f.write(result_path)
     result =  pd.DataFrame({'Id': test.Id, 'SalePrice': Final_labels})
     write_result(args,  result)
 

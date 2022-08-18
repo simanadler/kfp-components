@@ -2,6 +2,7 @@
 step #4: submit result to kaggle
 """
 import kfp
+import sys
 
 def _make_parent_dirs_and_return_path(file_path: str):
     import os
@@ -22,7 +23,7 @@ def submit_result(
     except Exception as e:
         print("Error getting catalog id from file: %s\n" % e)
         print("catalog id path = %s\n" % result_catalogid_path)
-        return
+        sys.exit(e)
 
     print("The results have been generated and have been cataloged as data asset %s\n", catalog_asset_id)
     markdown_content = "## The results have been generated and have been cataloged as data asset " + catalog_asset_id + "\n\n"

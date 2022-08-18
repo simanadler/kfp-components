@@ -61,14 +61,14 @@ From within samples/house_price_estimate run one of the following.
 
 If your kubeflow pipeline deployment uses Argo Workflows (the default):
 ```
-python3 pipelinev1argo.py
+python3 pipeline-argo.py
 ```
 This will result in a file called pipelinev1argo.yaml.
 
 
 If you deployed kubeflow pipeline with tekton as the workflow manager:
 ```
-python3 pipelinev1tekton.py
+python3 pipeline-tekton.py
 ```
 This will result in a file called pipelinev1tekton.yaml.
 
@@ -81,9 +81,6 @@ See slide 17 of the [demo presentation](https://drive.google.com/file/d/1xn7pGe5
 Create a pipeline run via the Kubeflow Pipeline GUI, providing the following parameters:
 * test_dataset_id: testpii-csv
 * train_dataset_id:  trainpii-csv
-* namespace: kubeflow
-* intent: PriceEstimates
-* run_name: name of your choice - in lowercase
 
 See slide 19 of the [demo presentation](https://drive.google.com/file/d/1xn7pGe5pEAEZxnIzDdom9r7K6s78alcP/view?usp=sharing).
 

@@ -7,6 +7,7 @@ from tokenize import String
 from kubernetes import client, config
 from kubernetes.client.rest import ApiException
 from pprint import pprint
+import sys
 
 def _make_parent_dirs_and_return_path(file_path: str):
     import os
@@ -84,7 +85,7 @@ def getEndpoints(args, k8s_api):
                     
         except ApiException as e:
             print("Exception when calling CustomObjectsApi->get_cluster_custom_object_status: %s\n" % e)
-            return []  # return an empty list
+            sys.exit(e)
 
     pprint(fa_status)
 
@@ -140,7 +141,6 @@ def createFybrikApplicationObj(args):
                 }
             },
             "appInfo": {
-                "intent": args.intent
             },
             "data": [
                 {
@@ -192,7 +192,7 @@ def createFybrikApplication(args, k8s_api):
         return True
     except ApiException as e:
         print("Exception when calling CustomObjectsApi->create_namespaced_custom_object: %s\n" % e)
-        return False
+        sys.exit(e)
 
 
 def doFybrikMagic(args):
@@ -204,6 +204,7 @@ def doFybrikMagic(args):
             config.load_kube_config()
         except config.ConfigException:
             raise Exception("Could not configure kubernetes python client")
+            sys.exit(e)
 
     k8s_api = client.CustomObjectsApi()
 
@@ -222,6 +223,7 @@ def doFybrikMagic(args):
             result_file.write("")
         with open(args.result_catalogid_path, 'w') as result_catalogid_file:
             result_catalogid_file.write("")
+        sys.exit(e)
    
 
 
@@ -234,10 +236,7 @@ if __name__ == '__main__':
     parser.add_argument('--test_dataset_id', type=str)
     parser.add_argument('--train_dataset_id', type=str)
     parser.add_argument('--run_name', type=str)
-    parser.add_argument('--intent', type=str)
     parser.add_argument('--namespace', type=str)
- #   parser.add_argument('--train_endpoint_path', type=str)
- #   parser.add_argument('--test_endpoint_path', type=str)
     parser.add_argument("--test_endpoint", dest="test_endpoint_path", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
     parser.add_argument("--train_endpoint", dest="train_endpoint_path", type=_make_parent_dirs_and_return_path, required=True, default=argparse.SUPPRESS)
     parser.add_argument("--result_name", type=str, required=True, default=argparse.SUPPRESS)

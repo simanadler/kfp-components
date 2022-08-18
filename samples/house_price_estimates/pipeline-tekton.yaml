@@ -1,7 +1,7 @@
 apiVersion: tekton.dev/v1beta1
 kind: PipelineRun
 metadata:
-  name: fybrik-housing-price-estimate-pipeline
+  name: houseprice-pipeline
   annotations:
     tekton.dev/output_artifacts: '{"get-data-endpoints": [{"key": "artifacts/$PIPELINERUN/get-data-endpoints/result_catalogid.tgz",
       "name": "get-data-endpoints-result_catalogid", "path": "/tmp/outputs/result_catalogid/data"},
@@ -30,44 +30,28 @@ metadata:
       "train-model": [], "visualize-table": []}'
     sidecar.istio.io/inject: "false"
     pipelines.kubeflow.org/big_data_passing_format: $(workspaces.$TASK_NAME.path)/artifacts/$ORIG_PR_NAME/$TASKRUN_NAME/$TASK_PARAM_NAME
-    pipelines.kubeflow.org/pipeline_spec: '{"description": "Pipeline that provides
-      data policy governed access to cataloged data, analyses data, trains model,
-      and writes the results and catalogs them", "inputs": [{"name": "test_dataset_id",
-      "type": "String"}, {"name": "train_dataset_id", "type": "String"}, {"name":
-      "run_name", "type": "String"}, {"name": "intent", "type": "String"}, {"name":
-      "namespace", "type": "String"}], "name": "Fybrik housing price estimate pipeline"}'
+    pipelines.kubeflow.org/pipeline_spec: '{"inputs": [{"name": "test_dataset_id",
+      "type": "String"}, {"name": "train_dataset_id", "type": "String"}], "name":
+      "Houseprice pipeline"}'
 spec:
   params:
-  - name: intent
-    value: ''
-  - name: namespace
-    value: ''
-  - name: run_name
-    value: ''
   - name: test_dataset_id
     value: ''
   - name: train_dataset_id
     value: ''
   pipelineSpec:
     params:
-    - name: intent
-    - name: namespace
-    - name: run_name
     - name: test_dataset_id
     - name: train_dataset_id
     tasks:
     - name: get-data-endpoints
       params:
-      - name: intent
-        value: $(params.intent)
-      - name: namespace
-        value: $(params.namespace)
-      - name: run_name
-        value: $(params.run_name)
       - name: test_dataset_id
         value: $(params.test_dataset_id)
       - name: train_dataset_id
         value: $(params.train_dataset_id)
+      - name: pipelineRun-uid
+        value: $(context.pipelineRun.uid)
       taskSpec:
         steps:
         - name: main
@@ -77,13 +61,11 @@ spec:
           - --test_dataset_id
           - $(inputs.params.train_dataset_id)
           - --run_name
-          - $(inputs.params.run_name)
+          - run-$(params.pipelineRun-uid)
           - --namespace
-          - $(inputs.params.namespace)
-          - --intent
-          - $(inputs.params.intent)
+          - kubeflow
           - --result_name
-          - submission-$(inputs.params.run_name)
+          - submission-run-$(params.pipelineRun-uid)
           - --test_endpoint
           - $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/test_endpoint
           - --train_endpoint
@@ -103,39 +85,73 @@ spec:
                 fieldPath: metadata.labels['custom.tekton.dev/originalPipelineRun']
         - image: busybox
           name: output-taskrun-name
-          script: |
-            #!/bin/sh
-            set -exo pipefail
-            echo -n "$(context.taskRun.name)" > $(results.taskrun-name.path)
+          command:
+          - sh
+          - -ec
+          - echo -n "$(context.taskRun.name)" > "$(results.taskrun-name.path)"
         - image: busybox
           name: copy-results-artifacts
-          script: |
-            #!/bin/sh
+          command:
+          - sh
+          - -ec
+          - |
             set -exo pipefail
             TOTAL_SIZE=0
-            ARTIFACT_SIZE=`wc -c $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/test_endpoint | awk '{print $1}'`
+            if [ -d $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/test_endpoint ]; then
+              tar -czvf $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/test_endpoint.tar.gz $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/test_endpoint
+              SUFFIX=".tar.gz"
+            fi
+            ARTIFACT_SIZE=`wc -c $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/test_endpoint${SUFFIX} | awk '{print $1}'`
             TOTAL_SIZE=$( expr $TOTAL_SIZE + $ARTIFACT_SIZE)
             touch $(results.test-endpoint.path)
             if [[ $TOTAL_SIZE -lt 3072 ]]; then
-              cp $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/test_endpoint $(results.test-endpoint.path)
+              if [ -d $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/test_endpoint ]; then
+                tar -tzf $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/test_endpoint.tar.gz > $(results.test-endpoint.path)
+              elif ! awk "/[^[:print:]]/{f=1} END{exit !f}" $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/test_endpoint; then
+                cp $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/test_endpoint $(results.test-endpoint.path)
+              fi
             fi
-            ARTIFACT_SIZE=`wc -c $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/train_endpoint | awk '{print $1}'`
+            if [ -d $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/train_endpoint ]; then
+              tar -czvf $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/train_endpoint.tar.gz $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/train_endpoint
+              SUFFIX=".tar.gz"
+            fi
+            ARTIFACT_SIZE=`wc -c $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/train_endpoint${SUFFIX} | awk '{print $1}'`
             TOTAL_SIZE=$( expr $TOTAL_SIZE + $ARTIFACT_SIZE)
             touch $(results.train-endpoint.path)
             if [[ $TOTAL_SIZE -lt 3072 ]]; then
-              cp $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/train_endpoint $(results.train-endpoint.path)
+              if [ -d $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/train_endpoint ]; then
+                tar -tzf $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/train_endpoint.tar.gz > $(results.train-endpoint.path)
+              elif ! awk "/[^[:print:]]/{f=1} END{exit !f}" $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/train_endpoint; then
+                cp $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/train_endpoint $(results.train-endpoint.path)
+              fi
             fi
-            ARTIFACT_SIZE=`wc -c $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/result_endpoint | awk '{print $1}'`
+            if [ -d $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/result_endpoint ]; then
+              tar -czvf $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/result_endpoint.tar.gz $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/result_endpoint
+              SUFFIX=".tar.gz"
+            fi
+            ARTIFACT_SIZE=`wc -c $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/result_endpoint${SUFFIX} | awk '{print $1}'`
             TOTAL_SIZE=$( expr $TOTAL_SIZE + $ARTIFACT_SIZE)
             touch $(results.result-endpoint.path)
             if [[ $TOTAL_SIZE -lt 3072 ]]; then
-              cp $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/result_endpoint $(results.result-endpoint.path)
+              if [ -d $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/result_endpoint ]; then
+                tar -tzf $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/result_endpoint.tar.gz > $(results.result-endpoint.path)
+              elif ! awk "/[^[:print:]]/{f=1} END{exit !f}" $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/result_endpoint; then
+                cp $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/result_endpoint $(results.result-endpoint.path)
+              fi
             fi
-            ARTIFACT_SIZE=`wc -c $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/result_catalogid | awk '{print $1}'`
+            if [ -d $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/result_catalogid ]; then
+              tar -czvf $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/result_catalogid.tar.gz $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/result_catalogid
+              SUFFIX=".tar.gz"
+            fi
+            ARTIFACT_SIZE=`wc -c $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/result_catalogid${SUFFIX} | awk '{print $1}'`
             TOTAL_SIZE=$( expr $TOTAL_SIZE + $ARTIFACT_SIZE)
             touch $(results.result-catalogid.path)
             if [[ $TOTAL_SIZE -lt 3072 ]]; then
-              cp $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/result_catalogid $(results.result-catalogid.path)
+              if [ -d $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/result_catalogid ]; then
+                tar -tzf $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/result_catalogid.tar.gz > $(results.result-catalogid.path)
+              elif ! awk "/[^[:print:]]/{f=1} END{exit !f}" $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/result_catalogid; then
+                cp $(workspaces.get-data-endpoints.path)/artifacts/$ORIG_PR_NAME/$(context.taskRun.name)/result_catalogid $(results.result-catalogid.path)
+              fi
             fi
           onError: continue
           env:
@@ -144,26 +160,24 @@ spec:
               fieldRef:
                 fieldPath: metadata.labels['custom.tekton.dev/originalPipelineRun']
         params:
-        - name: intent
-        - name: namespace
-        - name: run_name
         - name: test_dataset_id
         - name: train_dataset_id
+        - name: pipelineRun-uid
         results:
+        - name: result-catalogid
+          type: string
+          description: /tmp/outputs/result_catalogid/data
+        - name: result-endpoint
+          type: string
+          description: /tmp/outputs/result_endpoint/data
+        - name: taskrun-name
+          type: string
         - name: test-endpoint
           type: string
           description: /tmp/outputs/test_endpoint/data
         - name: train-endpoint
           type: string
           description: /tmp/outputs/train_endpoint/data
-        - name: result-endpoint
-          type: string
-          description: /tmp/outputs/result_endpoint/data
-        - name: result-catalogid
-          type: string
-          description: /tmp/outputs/result_catalogid/data
-        - name: taskrun-name
-          type: string
         metadata:
           labels:
             pipelines.kubeflow.org/pipelinename: ''
@@ -173,18 +187,16 @@ spec:
             pipelines.kubeflow.org/component_spec_digest: '{"name": "get data endpoints",
               "outputs": [{"name": "test_endpoint", "type": "String"}, {"name": "train_endpoint",
               "type": "String"}, {"name": "result_endpoint", "type": "String"}, {"name":
-              "result_catalogid", "type": "String"}], "version": "get data endpoints@sha256=97d176dbdc785c34ee54f0edb2796381ab35cf8d5c03375fe0a17e2312573af4"}'
+              "result_catalogid", "type": "String"}], "version": "get data endpoints@sha256=52815d2707bf97bcc2b6dab6e24214864f563c422304305ded49c5553f48e1d2"}'
             tekton.dev/template: ''
         workspaces:
         - name: get-data-endpoints
       timeout: 525600m
       workspaces:
       - name: get-data-endpoints
-        workspace: fybrik-housing-price-estimate-pipeline
+        workspace: houseprice-pipeline
     - name: visualize-table
       params:
-      - name: namespace
-        value: $(params.namespace)
       - name: train_dataset_id
         value: $(params.train_dataset_id)
       - name: get-data-endpoints-trname
@@ -198,7 +210,7 @@ spec:
           - --train_dataset_id
           - $(inputs.params.train_dataset_id)
           - --namespace
-          - $(inputs.params.namespace)
+          - kubeflow
           command:
           - python3
           - visualize.py
@@ -209,7 +221,6 @@ spec:
               fieldRef:
                 fieldPath: metadata.labels['custom.tekton.dev/originalPipelineRun']
         params:
-        - name: namespace
         - name: train_dataset_id
         - name: get-data-endpoints-trname
         metadata:
@@ -229,19 +240,17 @@ spec:
       timeout: 525600m
       workspaces:
       - name: visualize-table
-        workspace: fybrik-housing-price-estimate-pipeline
+        workspace: houseprice-pipeline
     - name: train-model
       params:
-      - name: namespace
-        value: $(params.namespace)
-      - name: run_name
-        value: $(params.run_name)
       - name: test_dataset_id
         value: $(params.test_dataset_id)
       - name: train_dataset_id
         value: $(params.train_dataset_id)
       - name: get-data-endpoints-trname
         value: $(tasks.get-data-endpoints.results.taskrun-name)
+      - name: pipelineRun-uid
+        value: $(context.pipelineRun.uid)
       taskSpec:
         steps:
         - name: main
@@ -255,9 +264,9 @@ spec:
           - --test_dataset_id
           - $(inputs.params.test_dataset_id)
           - --namespace
-          - $(inputs.params.namespace)
+          - kubeflow
           - --result_name
-          - submission-$(inputs.params.run_name)
+          - submission-run-$(params.pipelineRun-uid)
           - --result_endpoint_path
           - $(workspaces.train-model.path)/artifacts/$ORIG_PR_NAME/$(params.get-data-endpoints-trname)/result_endpoint
           command:
@@ -270,11 +279,10 @@ spec:
               fieldRef:
                 fieldPath: metadata.labels['custom.tekton.dev/originalPipelineRun']
         params:
-        - name: namespace
-        - name: run_name
         - name: test_dataset_id
         - name: train_dataset_id
         - name: get-data-endpoints-trname
+        - name: pipelineRun-uid
         metadata:
           labels:
             pipelines.kubeflow.org/pipelinename: ''
@@ -294,7 +302,7 @@ spec:
       timeout: 525600m
       workspaces:
       - name: train-model
-        workspace: fybrik-housing-price-estimate-pipeline
+        workspace: houseprice-pipeline
     - name: submit-result
       params:
       - name: get-data-endpoints-trname
@@ -341,12 +349,12 @@ spec:
       timeout: 525600m
       workspaces:
       - name: submit-result
-        workspace: fybrik-housing-price-estimate-pipeline
+        workspace: houseprice-pipeline
     workspaces:
-    - name: fybrik-housing-price-estimate-pipeline
+    - name: houseprice-pipeline
   timeout: 525600m
   workspaces:
-  - name: fybrik-housing-price-estimate-pipeline
+  - name: houseprice-pipeline
     volumeClaimTemplate:
       spec:
         storageClassName: kfp-csi-s3
