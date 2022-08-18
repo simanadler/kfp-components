@@ -11,8 +11,7 @@ def _make_parent_dirs_and_return_path(file_path: str):
 
 
 def submit_result(
-    result_catalogid_path,
-    markdown_artifact: Output[Markdown]
+    result_catalogid_path
 ):
     # Read the catalog id received from a previous step in the pipeline
     catalog_asset_id = ""
